@@ -1,12 +1,12 @@
 'use strict';
 const mongoose = require('mongoose');
 
-// Conexión a MongoDB sin useNewUrlParser ni useUnifiedTopology
+// Conexión a Mongo (sin useNewUrlParser / useUnifiedTopology en Mongoose 7+)
 mongoose.connect(process.env.DB)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// Esquema para las respuestas (subdocumento)
+// Esquema de reply
 const replySchema = new mongoose.Schema({
   text: { type: String, required: true },
   created_on: Date,
@@ -14,7 +14,7 @@ const replySchema = new mongoose.Schema({
   reported: Boolean
 });
 
-// Esquema para los hilos
+// Esquema de thread
 const threadSchema = new mongoose.Schema({
   board: String,
   text: { type: String, required: true },
@@ -29,59 +29,67 @@ const Thread = mongoose.model('Thread', threadSchema);
 
 module.exports = function (app) {
   
-  // Rutas para /api/threads/:board
+  // =================================
+  //  /api/threads/:board
+  // =================================
   app.route('/api/threads/:board')
 
-    // POST: Crear un nuevo thread
+    // POST -> Crear thread
     .post(async (req, res) => {
       try {
         const board = req.params.board;
         const { text, delete_password } = req.body;
         
         const newThread = new Thread({
-          board,
-          text,
+          board: board,
+          text: text,
           created_on: new Date(),
           bumped_on: new Date(),
           reported: false,
-          delete_password,
+          delete_password: delete_password,
           replies: []
         });
         
         await newThread.save();
-        
-        // Redirigir de nuevo al board
+        // Redirigir a la ruta /b/:board para ver el hilo en el frontend
         return res.redirect(`/b/${board}/`);
       } catch (err) {
         console.error(err);
-        return res.send('Error al crear el thread');
+        return res.send('error');
       }
     })
 
-    // GET: Ver los 10 hilos más recientes, con sus 3 replies más recientes
+    // GET -> Ver los 10 hilos más recientes (cada uno con 3 replies recientes)
     .get(async (req, res) => {
       try {
         const board = req.params.board;
         
         let threads = await Thread.find(
-          { board },
-          { delete_password: 0, reported: 0, 'replies.delete_password': 0, 'replies.reported': 0 }
+          { board: board },
+          {
+            delete_password: 0,
+            reported: 0,
+            'replies.delete_password': 0,
+            'replies.reported': 0
+          }
         )
         .sort({ bumped_on: -1 })
         .limit(10)
         .lean();
-        
+
+        // Solo mostrar las 3 replies más recientes
         threads = threads.map(thread => {
           const replyCount = thread.replies.length;
           const replies = thread.replies
             .sort((a, b) => b.created_on - a.created_on)
             .slice(0, 3);
+
           return {
             _id: thread._id,
             text: thread.text,
             created_on: thread.created_on,
             bumped_on: thread.bumped_on,
-            replies,
+            replies: replies,
             replycount: replyCount
           };
         });
@@ -89,11 +97,11 @@ module.exports = function (app) {
         return res.json(threads);
       } catch (err) {
         console.error(err);
-        return res.send('Error al obtener los threads');
+        return res.send('error');
       }
     })
 
-    // DELETE: Borrar un thread
+    // DELETE -> Borrar thread
     .delete(async (req, res) => {
       try {
         const { thread_id, delete_password } = req.body;
@@ -102,12 +110,10 @@ module.exports = function (app) {
         if (!thread) {
           return res.send('no thread found');
         }
-        
         if (thread.delete_password !== delete_password) {
           return res.send('incorrect password');
         }
 
-        // En Mongoose 7, se usa findByIdAndDelete
         await Thread.findByIdAndDelete(thread_id);
         return res.send('success');
       } catch (err) {
@@ -116,12 +122,14 @@ module.exports = function (app) {
       }
     })
 
-    // PUT: Reportar un thread
+    // PUT -> Reportar thread
     .put(async (req, res) => {
       try {
         const { thread_id } = req.body;
+        
         await Thread.findByIdAndUpdate(thread_id, { reported: true });
-        return res.send('success');
+        // FCC pide que respondamos con "reported"
+        return res.send('reported');
       } catch (err) {
         console.error(err);
         return res.send('error');
@@ -129,10 +137,12 @@ module.exports = function (app) {
     });
 
 
-  // Rutas para /api/replies/:board
+  // =================================
+  //  /api/replies/:board
+  // =================================
   app.route('/api/replies/:board')
 
-    // POST: Crear una respuesta
+    // POST -> Crear nueva respuesta
     .post(async (req, res) => {
       try {
         const board = req.params.board;
@@ -144,9 +154,9 @@ module.exports = function (app) {
         }
         
         const newReply = {
-          text,
+          text: text,
           created_on: new Date(),
-          delete_password,
+          delete_password: delete_password,
           reported: false
         };
         
@@ -155,7 +165,7 @@ module.exports = function (app) {
         
         await thread.save();
         
-        // Redirigir al hilo
+        // Redirigir a la vista del thread
         return res.redirect(`/b/${board}/${thread_id}`);
       } catch (err) {
         console.error(err);
@@ -163,15 +173,20 @@ module.exports = function (app) {
       }
     })
 
-    // GET: Ver un hilo con todas sus respuestas
+    // GET -> Ver un hilo con todas sus respuestas
     .get(async (req, res) => {
       try {
-        const board = req.params.board; // no se usa en la query, pero lo dejamos
+        const board = req.params.board; // Se podría usar si quieres filtrar, en general no es forzoso
         const thread_id = req.query.thread_id;
         
         const thread = await Thread.findById(
           thread_id,
-          { delete_password: 0, reported: 0, 'replies.delete_password': 0, 'replies.reported': 0 }
+          {
+            delete_password: 0,
+            reported: 0,
+            'replies.delete_password': 0,
+            'replies.reported': 0
+          }
         ).lean();
         
         if (!thread) {
@@ -185,7 +200,7 @@ module.exports = function (app) {
       }
     })
 
-    // DELETE: Borrar una respuesta
+    // DELETE -> Borrar una respuesta
     .delete(async (req, res) => {
       try {
         const { thread_id, reply_id, delete_password } = req.body;
@@ -204,10 +219,10 @@ module.exports = function (app) {
           return res.send('incorrect password');
         }
         
-        // En lugar de quitarla, se "borra" el texto según la consigna
+        // Cambiar el texto a [deleted] en lugar de eliminar físicamente
         reply.text = '[deleted]';
-        
         await thread.save();
+        
         return res.send('success');
       } catch (err) {
         console.error(err);
@@ -215,7 +230,7 @@ module.exports = function (app) {
       }
     })
 
-    // PUT: Reportar una respuesta
+    // PUT -> Reportar una respuesta
     .put(async (req, res) => {
       try {
         const { thread_id, reply_id } = req.body;
@@ -231,9 +246,10 @@ module.exports = function (app) {
         }
         
         reply.reported = true;
-        
         await thread.save();
-        return res.send('success');
+        
+        // FCC pide que sea "reported"
+        return res.send('reported');
       } catch (err) {
         console.error(err);
         return res.send('error');

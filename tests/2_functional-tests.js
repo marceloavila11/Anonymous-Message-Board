@@ -8,7 +8,7 @@ chai.use(chaiHttp);
 suite('Functional Tests', function() {
   
   let testThreadId; 
-  let testReplyId;  
+  let testReplyId;
 
   suite('API ROUTING FOR /api/threads/:board', function() {
     
@@ -22,6 +22,7 @@ suite('Functional Tests', function() {
           })
           .end((err, res) => {
             assert.equal(res.status, 200);
+            // redirige a /b/test
             done();
           });
       });
@@ -35,8 +36,8 @@ suite('Functional Tests', function() {
             assert.equal(res.status, 200);
             assert.isArray(res.body);
             assert.isAtMost(res.body.length, 10);
-            if (res.body.length > 0) {
-              testThreadId = res.body[0]._id; // guardamos un id
+            if(res.body.length > 0) {
+              testThreadId = res.body[0]._id;
             }
             done();
           });
@@ -52,7 +53,7 @@ suite('Functional Tests', function() {
           })
           .end((err, res) => {
             assert.equal(res.status, 200);
-            assert.equal(res.text, 'success');
+            assert.equal(res.text, 'reported');
             done();
           });
       });
@@ -64,7 +65,7 @@ suite('Functional Tests', function() {
           .delete('/api/threads/test')
           .send({
             thread_id: testThreadId,
-            delete_password: 'contraseña equivocada'
+            delete_password: 'wrongpass'
           })
           .end((err, res) => {
             assert.equal(res.status, 200);
@@ -81,7 +82,6 @@ suite('Functional Tests', function() {
           })
           .end((err, res) => {
             assert.equal(res.status, 200);
-            // Debe decir 'success' si todo va bien
             assert.equal(res.text, 'success');
             done();
           });
@@ -90,12 +90,12 @@ suite('Functional Tests', function() {
   });
 
   suite('API ROUTING FOR /api/replies/:board', function() {
-
-    // Para probar replies, primero creamos un thread nuevo
+    
     let tempThreadId;
-
+    
+    // Creamos un thread nuevo para probar replies
     suite('POST - crear thread previo', function() {
-      test('Crear otro thread para pruebas de replies', function(done){
+      test('Crear thread para replies', function(done){
         chai.request(server)
           .post('/api/threads/test')
           .send({ text: 'Thread para replies', delete_password: 'abc123' })
@@ -104,13 +104,13 @@ suite('Functional Tests', function() {
             done();
           });
       });
-      test('Obtener threads para quedarnos con el ID', function(done){
+      test('Obtener threads y quedarnos con el ID', function(done){
         chai.request(server)
           .get('/api/threads/test')
           .end((err, res) => {
             assert.equal(res.status, 200);
             assert.isArray(res.body);
-            // Asumimos que el primer item es el que acabamos de crear
+            // Suponemos que el primer item es el que acabamos de crear
             tempThreadId = res.body[0]._id;
             done();
           });
@@ -118,7 +118,7 @@ suite('Functional Tests', function() {
     });
 
     suite('POST', function() {
-      test('Crear nueva respuesta en un thread', function(done) {
+      test('Crear nueva respuesta', function(done) {
         chai.request(server)
           .post('/api/replies/test')
           .send({
@@ -134,7 +134,7 @@ suite('Functional Tests', function() {
     });
 
     suite('GET', function() {
-      test('Ver un thread con todas sus respuestas', function(done) {
+      test('Ver hilo con todas sus respuestas', function(done) {
         chai.request(server)
           .get('/api/replies/test')
           .query({ thread_id: tempThreadId })
@@ -161,7 +161,7 @@ suite('Functional Tests', function() {
           })
           .end((err, res) => {
             assert.equal(res.status, 200);
-            assert.equal(res.text, 'success');
+            assert.equal(res.text, 'reported');
             done();
           });
       });

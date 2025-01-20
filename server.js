@@ -7,18 +7,28 @@ const helmet      = require('helmet');
 
 const apiRoutes         = require('./routes/api.js');
 const fccTestingRoutes  = require('./routes/fcctesting.js');
-const runner            = require('./test-runner') || require('./test-runner'); 
-// Ojo: ajusta la ruta si tu test-runner está en otra ubicación
+const runner            = require('./test-runner'); // Ajusta si tu test-runner está en otra carpeta
 
 const app = express();
 
-// Configuración de Helmet para mejorar la seguridad
-app.use(helmet());
+// Configuración de Helmet
+app.use(
+  helmet({
+    // Bloquear iFrame excepto mismo origen (ya estaba en el boilerplate original)
+    frameguard: { action: 'sameorigin' },
+    // Bloquear DNS Prefetching
+    dnsPrefetchControl: { allow: false },
+  })
+);
 
-// Servir archivos estáticos
+// SOLO enviar referrer para tus propias páginas (test 4)
+app.use(helmet.referrerPolicy({ policy: 'same-origin' }));
+
+// Archivos estáticos
 app.use('/public', express.static(process.cwd() + '/public'));
 
-app.use(cors({ origin: '*' })); // Para permitir testing en freeCodeCamp
+// CORS para FCC
+app.use(cors({ origin: '*' }));
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -40,7 +50,7 @@ app.route('/')
     res.sendFile(process.cwd() + '/views/index.html');
   });
 
-// Rutas de testing de freeCodeCamp
+// Rutas de testeo FCC
 fccTestingRoutes(app);
 
 // Rutas de la API
@@ -53,10 +63,9 @@ app.use(function(req, res, next) {
     .send('Not Found');
 });
 
-// Inicio del servidor
+// Inicializar servidor + ejecutar tests si NODE_ENV === 'test'
 const listener = app.listen(process.env.PORT || 3000, function () {
   console.log('Your app is listening on port ' + listener.address().port);
-  // Correr los tests si estamos en modo test
   if(process.env.NODE_ENV === 'test') {
     console.log('Running Tests...');
     setTimeout(function () {
